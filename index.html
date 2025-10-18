@@ -363,13 +363,34 @@
         currentFaceName = faceName;
         currentFaceNameEl.textContent = faceName;
 
-        // OpenType.js で収録文字一覧
+        // OpenType.js で収録文字一覧（厳密版）
+        // 以前は cmap のキーだけを列挙していたため、.notdef(0) など未収録扱いの範囲が混入する可能性がありました。
+        // 対策として glyph.unicodes を優先し、さらに charToGlyphIndex>0 のものだけを採用します。
         const font = opentype.parse(buffer);
-        const map = (font.tables && font.tables.cmap && font.tables.cmap.glyphIndexMap) ? font.tables.cmap.glyphIndexMap : {};
-        const cps = Object.keys(map).map(n => parseInt(n,10))
-          .filter(cp => Number.isFinite(cp) && cp >= 32 && cp !== 0xFFFF)
-          .sort((a,b) => a - b);
+        const cpsSet = new Set();
 
+        // 1) glyph.unicodes を走査
+        const glyphArray = (font.glyphs && font.glyphs.glyphs) ? font.glyphs.glyphs : [];
+        glyphArray.forEach(g => {
+          if (!g) return;
+          const arr = (g.unicodes && g.unicodes.length) ? g.unicodes : (Number.isFinite(g.unicode) ? [g.unicode] : []);
+          arr.forEach(cp => {
+            if (Number.isFinite(cp) && cp >= 32 && cp !== 0xFFFF) cpsSet.add(cp);
+          });
+        });
+
+        // 2) 念のため cmap も見るが、charToGlyphIndex>0 のものだけ追加
+        if (font.tables && font.tables.cmap && font.tables.cmap.glyphIndexMap) {
+          const cmap = font.tables.cmap.glyphIndexMap;
+          Object.keys(cmap).forEach(k => {
+            const cp = parseInt(k, 10);
+            if (!Number.isFinite(cp) || cp < 32 || cp === 0xFFFF) return;
+            const ch = String.fromCodePoint(cp);
+            if (font.charToGlyphIndex(ch) > 0) cpsSet.add(cp);
+          });
+        }
+
+        const cps = Array.from(cpsSet).sort((a,b) => a - b);
         allChars = cps.map(cp => ({ cp, ch: String.fromCodePoint(cp) }));
         applyFilter();
         buildGrid();
