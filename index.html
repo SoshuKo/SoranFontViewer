@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Soran00–99 試し打ち</title>
+  <meta name="description" content="同階層の Soran00.ttf〜Soran99.ttf を読み込み、フォント収録文字をボタンで入力できる試し打ちページ" />
+  <!-- OpenType.js（フォントの収録文字一覧を取得するため） -->
+  <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: #121826;
+      --muted: #8b95a7;
+      --text: #e6edf7;
+      --accent: #6ea8fe;
+      --accent-2: #9bdbff;
+      --danger: #ff6b6b;
+      --tile-size: 52px;
+      --radius: 16px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(1000px 600px at 80% -10%, rgba(110,168,254,.18), transparent 60%),
+                  radial-gradient(800px 500px at -10% 0%, rgba(155,219,255,.18), transparent 60%),
+                  var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    header {
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: saturate(1.2) blur(8px);
+      background: rgba(11,14,20,.65);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    header .inner { max-width: 1200px; margin: 0 auto; padding: 14px 24px; display: grid; gap: 12px; grid-template-columns: 1fr; }
+
+    .title { display: flex; align-items: center; gap: 12px; }
+    .title h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: .02em; }
+    .title small { color: var(--muted); }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .controls .group { display: flex; gap: 8px; align-items: center; background: var(--panel); padding: 10px; border-radius: 12px; box-shadow: var(--shadow); }
+    label { font-size: 12px; color: var(--muted); }
+    select, input[type="number"], input[type="text"], button, .pill {
+      border: 1px solid rgba(255,255,255,.1);
+      background: #0f1420;
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      outline: none;
+    }
+    input[type="range"] { accent-color: var(--accent); }
+
+    .pill { font-size: 12px; cursor: default; }
+
+    .btn {
+      background: linear-gradient(180deg, #1b2a44, #0f1a2e);
+      border: 1px solid rgba(110,168,254,.35);
+      color: #cfe2ff;
+      padding: 10px 12px; border-radius: 12px; cursor: pointer; transition: transform .06s ease, box-shadow .12s ease;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(110,168,254,.15); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn.secondary { border-color: rgba(255,255,255,.2); color: var(--text); background: #121826; }
+    .btn.danger { border-color: rgba(255,107,107,.6); color: #ffdada; background: #2a0f14; }
+
+    .main { display: grid; grid-template-columns: 360px 1fr; gap: 18px; margin-top: 20px; }
+    @media (max-width: 980px) { .main { grid-template-columns: 1fr; } }
+
+    .panel { background: rgba(15, 20, 32, .8); border: 1px solid rgba(255,255,255,.07); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+    .preview { padding: 16px; display: grid; gap: 12px; }
+    .preview .row { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .preview .label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+
+    .preview .box { background: #0f1420; border: 1px dashed rgba(255,255,255,.15); border-radius: 12px; padding: 14px; min-height: 88px; }
+    .preview .box .text { word-break: break-word; line-height: 1.6; }
+    .preview .box.font .text { font-family: var(--current-face, ui-sans-serif); }
+
+    .keys { padding: 12px; display: grid; gap: 8px; }
+    .keys .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+    .keys .toolbar .left, .keys .toolbar .right { display: flex; gap: 8px; align-items: center; }
+
+    .grid-wrap { position: relative; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-size), 1fr)); gap: 8px; align-items: stretch; }
+    .tile { height: var(--tile-size); min-width: var(--tile-size); display: grid; align-items: center; justify-items: center; background: #0f1420; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; cursor: pointer; transition: transform .06s ease, background .12s ease, border-color .12s ease; position: relative; }
+    .tile:hover { transform: translateY(-1px); background: #121a2a; border-color: rgba(110,168,254,.35); }
+    .tile .cp { position: absolute; bottom: 3px; right: 6px; font-size: 10px; color: var(--muted); opacity: .8; }
+    .tile.font { font-family: var(--current-face, ui-sans-serif); }
+
+    .tabs { display: inline-grid; grid-auto-flow: column; background: #0f1420; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; overflow: hidden; }
+    .tabs button { border: 0; background: transparent; padding: 8px 12px; color: var(--muted); cursor: pointer; }
+    .tabs button.active { background: var(--accent); color: #0a101a; }
+
+    .footer { color: var(--muted); font-size: 12px; text-align: center; margin: 24px 0; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="inner">
+      <div class="title">
+        <h1>Soran00–99 試し打ち</h1>
+        <small>同階層の <code>Soran00.ttf</code> 〜 <code>Soran99.ttf</code> を自動ロード</small>
+      </div>
+      <div class="controls">
+        <div class="group">
+          <label for="fontNumber">フォント番号</label>
+          <select id="fontNumber" title="Soran の番号（00〜99）"></select>
+          <button id="loadBtn" class="btn">読み込み</button>
+          <span id="loadStatus" class="pill">未読込</span>
+        </div>
+        <div class="group">
+          <label for="sizeRange">表示サイズ</label>
+          <input type="range" id="sizeRange" min="24" max="96" value="40" />
+          <span id="sizeVal" class="pill">40px</span>
+        </div>
+        <div class="group">
+          <label for="filterInput">絞り込み</label>
+          <input id="filterInput" type="text" placeholder="文字 / U+XXXX で検索" />
+        </div>
+        <div class="group">
+          <span class="pill">表示：</span>
+          <div class="tabs" role="tablist">
+            <button id="tabBoth" class="active" role="tab" aria-selected="true">両方</button>
+            <button id="tabFont" role="tab" aria-selected="false">フォントのみ</button>
+            <button id="tabSys" role="tab" aria-selected="false">非フォントのみ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="main">
+      <aside class="panel preview" aria-label="試し打ちプレビュー">
+        <div class="row">
+          <div class="label">出力（システムフォント）</div>
+          <div class="box">
+            <div id="outSys" class="text" style="font-size: 28px;" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="label">出力（選択フォント） <span id="currentFaceName" class="pill"></span></div>
+          <div class="box font">
+            <div id="outFont" class="text" style="font-size: 28px;" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="row" style="display:flex; gap:8px; flex-wrap: wrap;">
+          <button id="btnCopy" class="btn">コピー</button>
+          <button id="btnBackspace" class="btn secondary">⌫ 1文字削除</button>
+          <button id="btnClear" class="btn danger">全消去</button>
+          <span class="pill">※ キーボード入力は無効、下のボタンで入力してください</span>
+        </div>
+      </aside>
+
+      <section class="panel keys" aria-label="収録文字の入力ボタン">
+        <div class="toolbar">
+          <div class="left">
+            <span class="pill">収録文字 <span id="statTotal">0</span>件 / 表示 <span id="statShowing">0</span>件</span>
+            <span class="pill">ページ <span id="pageInfo">1 / 1</span></span>
+          </div>
+          <div class="right">
+            <label>1ページの件数</label>
+            <select id="pageSize">
+              <option>100</option>
+              <option selected>300</option>
+              <option>600</option>
+              <option>1200</option>
+            </select>
+            <button id="prevPage" class="btn secondary" title="前のページ">←</button>
+            <button id="nextPage" class="btn secondary" title="次のページ">→</button>
+          </div>
+        </div>
+
+        <div class="grid-wrap">
+          <div id="gridSys" class="grid" aria-label="非フォント表示"></div>
+          <div id="gridFont" class="grid" aria-label="フォント表示"></div>
+        </div>
+      </section>
+    </section>
+
+    <p class="footer">同階層に <code>SoranXX.ttf</code>（XX=00〜99）を置いてください。存在しない番号は読み込みエラーになります。Powered by OpenType.js.</p>
+  </main>
+
+  <script>
+    // ====== 設定 ======
+    const FONT_PREFIX = 'Soran';   // ファイル名の接頭辞
+    const FONT_EXT = '.ttf';       // 拡張子
+
+    // ====== 要素参照 ======
+    const fontNumber = document.getElementById('fontNumber');
+    const loadBtn = document.getElementById('loadBtn');
+    const loadStatus = document.getElementById('loadStatus');
+    const outSys = document.getElementById('outSys');
+    const outFont = document.getElementById('outFont');
+    const currentFaceNameEl = document.getElementById('currentFaceName');
+    const sizeRange = document.getElementById('sizeRange');
+    const sizeVal = document.getElementById('sizeVal');
+    const filterInput = document.getElementById('filterInput');
+    const gridSys = document.getElementById('gridSys');
+    const gridFont = document.getElementById('gridFont');
+    const tabBoth = document.getElementById('tabBoth');
+    const tabFont = document.getElementById('tabFont');
+    const tabSys = document.getElementById('tabSys');
+    const btnCopy = document.getElementById('btnCopy');
+    const btnClear = document.getElementById('btnClear');
+    const btnBackspace = document.getElementById('btnBackspace');
+    const statTotal = document.getElementById('statTotal');
+    const statShowing = document.getElementById('statShowing');
+    const pageSizeSel = document.getElementById('pageSize');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+
+    // ====== 状態 ======
+    let buffer = '';
+    let currentFaceName = '';
+    let allChars = [];        // {cp, ch}
+    let filtered = [];        // 表示対象
+    let pageSize = 300;
+    let currentPage = 1;
+
+    // 番号セレクト初期化（00〜99）
+    for (let i = 0; i <= 99; i++) {
+      const opt = document.createElement('option');
+      opt.value = i.toString().padStart(2, '0');
+      opt.textContent = opt.value;
+      if (opt.value === '05') opt.selected = true; // 初期値
+      fontNumber.appendChild(opt);
+    }
+
+    // サイズ
+    const applySize = () => {
+      const px = Number(sizeRange.value);
+      sizeVal.textContent = px + 'px';
+      document.documentElement.style.setProperty('--tile-size', Math.max(36, Math.min(96, px + 12)) + 'px');
+      document.querySelectorAll('.tile').forEach(t => t.style.fontSize = px + 'px');
+      outSys.style.fontSize = Math.round(px * .7) + 'px';
+      outFont.style.fontSize = Math.round(px * .7) + 'px';
+    };
+    sizeRange.addEventListener('input', applySize);
+
+    // タブ切替
+    function setTab(mode) {
+      tabBoth.classList.toggle('active', mode === 'both');
+      tabFont.classList.toggle('active', mode === 'font');
+      tabSys.classList.toggle('active', mode === 'sys');
+      gridFont.classList.toggle('hidden', mode === 'sys');
+      gridSys.classList.toggle('hidden', mode === 'font');
+    }
+    tabBoth.addEventListener('click', () => setTab('both'));
+    tabFont.addEventListener('click', () => setTab('font'));
+    tabSys.addEventListener('click', () => setTab('sys'));
+
+    // 出力操作（キーボード無効）
+    document.addEventListener('keydown', (e) => {
+      // すべて無効化
+      e.preventDefault();
+      return false;
+    }, { capture: true });
+
+    btnCopy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(buffer); loadStatus.textContent = 'コピーしました'; }
+      catch { loadStatus.textContent = 'コピー失敗'; }
+      setTimeout(() => loadStatus.textContent = currentFaceName ? '読込済み' : '未読込', 1200);
+    });
+    btnClear.addEventListener('click', () => { buffer = ''; renderOutput(); });
+    btnBackspace.addEventListener('click', () => { buffer = buffer.slice(0, -1); renderOutput(); });
+
+    function renderOutput() {
+      outSys.textContent = buffer;
+      outFont.textContent = buffer;
+    }
+
+    function addChar(ch) { buffer += ch; renderOutput(); }
+
+    // 文字グリッド描画
+    function hex(cp) { return 'U+' + cp.toString(16).toUpperCase().padStart(4,'0'); }
+
+    function buildGrid() {
+      const total = filtered.length;
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      currentPage = Math.min(Math.max(1, currentPage), pages);
+      pageInfo.textContent = `${currentPage} / ${pages}`;
+      prevPageBtn.disabled = currentPage <= 1;
+      nextPageBtn.disabled = currentPage >= pages;
+
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, total);
+      const slice = filtered.slice(start, end);
+
+      const fragSys = document.createDocumentFragment();
+      const fragFont = document.createDocumentFragment();
+      slice.forEach(({cp, ch}) => {
+        const cpLabel = hex(cp);
+        const mk = (cls) => {
+          const b = document.createElement('button');
+          b.className = 'tile ' + cls;
+          b.title = `${cpLabel} ${JSON.stringify(ch)}`;
+          b.style.fontSize = Number(sizeRange.value) + 'px';
+          b.innerText = ch;
+          const small = document.createElement('span'); small.className = 'cp'; small.textContent = cpLabel; b.appendChild(small);
+          b.addEventListener('click', () => addChar(ch));
+          return b;
+        };
+        fragSys.appendChild(mk('sys'));
+        fragFont.appendChild(mk('font'));
+      });
+      gridSys.replaceChildren(fragSys);
+      gridFont.replaceChildren(fragFont);
+
+      statShowing.textContent = String(slice.length);
+      statTotal.textContent = String(total);
+    }
+
+    prevPageBtn.addEventListener('click', () => { currentPage--; buildGrid(); });
+    nextPageBtn.addEventListener('click', () => { currentPage++; buildGrid(); });
+    pageSizeSel.addEventListener('change', () => { pageSize = Number(pageSizeSel.value); currentPage = 1; buildGrid(); });
+
+    // フィルタ
+    filterInput.addEventListener('input', () => {
+      applyFilter(); buildGrid();
+    });
+
+    function applyFilter() {
+      const q = filterInput.value.trim();
+      if (!q) { filtered = allChars.slice(); return; }
+      const isU = /^U\+[0-9A-Fa-f]{4,6}$/.test(q);
+      if (isU) {
+        const cp = parseInt(q.slice(2), 16);
+        filtered = allChars.filter(x => x.cp === cp);
+      } else {
+        filtered = allChars.filter(x => x.ch.includes(q));
+      }
+      currentPage = 1;
+    }
+
+    // フォント読み込み
+    async function loadFontByNumber(numStr) {
+      const file = `${FONT_PREFIX}${numStr}${FONT_EXT}`;
+      const faceName = `${FONT_PREFIX}-${numStr}`;
+      loadStatus.textContent = `読み込み中… (${file})`;
+      try {
+        const res = await fetch(file);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+
+        // FontFace APIで登録
+        const ff = new FontFace(faceName, buffer);
+        await ff.load();
+        // 既存の同名を消してから追加（重複を避ける）
+        try { document.fonts.forEach(f => { if (f.family === faceName) document.fonts.delete(f); }); } catch {}
+        document.fonts.add(ff);
+        document.documentElement.style.setProperty('--current-face', `'${faceName}', ui-sans-serif`);
+        currentFaceName = faceName;
+        currentFaceNameEl.textContent = faceName;
+
+        // OpenType.js で収録文字一覧
+        const font = opentype.parse(buffer);
+        const map = (font.tables && font.tables.cmap && font.tables.cmap.glyphIndexMap) ? font.tables.cmap.glyphIndexMap : {};
+        const cps = Object.keys(map).map(n => parseInt(n,10))
+          .filter(cp => Number.isFinite(cp) && cp >= 32 && cp !== 0xFFFF)
+          .sort((a,b) => a - b);
+
+        allChars = cps.map(cp => ({ cp, ch: String.fromCodePoint(cp) }));
+        applyFilter();
+        buildGrid();
+
+        loadStatus.textContent = '読込済み';
+      } catch (err) {
+        console.error(err);
+        loadStatus.textContent = '読み込み失敗';
+        alert(`フォントの読み込みに失敗しました。\n${file}\n${err}`);
+      }
+    }
+
+    loadBtn.addEventListener('click', () => {
+      loadFontByNumber(fontNumber.value);
+    });
+
+    // 初期セットアップ
+    (function init(){
+      setTab('both');
+      applySize();
+      pageSize = Number(pageSizeSel.value);
+      // 初回は 05 を試す（同階層に Soran05.ttf がある場合）
+      loadFontByNumber(fontNumber.value);
+    })();
+  </script>
+</body>
+</html>
