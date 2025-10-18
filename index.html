@@ -367,33 +367,27 @@
         // 以前は cmap のキーだけを列挙していたため、.notdef(0) など未収録扱いの範囲が混入する可能性がありました。
         // 対策として glyph.unicodes を優先し、さらに charToGlyphIndex>0 のものだけを採用します。
         const font = opentype.parse(buffer);
-        const cpsSet = new Set();
+const cpsSet = new Set();
 
-        // 1) glyph.unicodes を走査
-        const glyphArray = (font.glyphs && font.glyphs.glyphs) ? font.glyphs.glyphs : [];
-        glyphArray.forEach(g => {
-          if (!g) return;
-          const arr = (g.unicodes && g.unicodes.length) ? g.unicodes : (Number.isFinite(g.unicode) ? [g.unicode] : []);
-          arr.forEach(cp => {
-            if (Number.isFinite(cp) && cp >= 32 && cp !== 0xFFFF) cpsSet.add(cp);
-          });
-        });
+// === 収録文字の列挙は cmap のみを厳密採用 ===
+// glyph 配列/セットの実装差（object やクラス）で forEach がないケースがあるため、
+// ここでは cmap.glyphIndexMap を基準にし、さらに charToGlyphIndex>0 で検証します。
+const cmap = (font.tables && font.tables.cmap && font.tables.cmap.glyphIndexMap)
+  ? font.tables.cmap.glyphIndexMap
+  : {};
 
-        // 2) 念のため cmap も見るが、charToGlyphIndex>0 のものだけ追加
-        if (font.tables && font.tables.cmap && font.tables.cmap.glyphIndexMap) {
-          const cmap = font.tables.cmap.glyphIndexMap;
-          Object.keys(cmap).forEach(k => {
-            const cp = parseInt(k, 10);
-            if (!Number.isFinite(cp) || cp < 32 || cp === 0xFFFF) return;
-            const ch = String.fromCodePoint(cp);
-            if (font.charToGlyphIndex(ch) > 0) cpsSet.add(cp);
-          });
-        }
+Object.keys(cmap).forEach(k => {
+  const cp = Number(k);
+  if (!Number.isFinite(cp) || cp < 32 || cp === 0xFFFF) return;
+  const ch = String.fromCodePoint(cp);
+  const gid = (typeof font.charToGlyphIndex === 'function') ? font.charToGlyphIndex(ch) : 0;
+  if (gid > 0) cpsSet.add(cp);
+});
 
-        const cps = Array.from(cpsSet).sort((a,b) => a - b);
-        allChars = cps.map(cp => ({ cp, ch: String.fromCodePoint(cp) }));
-        applyFilter();
-        buildGrid();
+const cps = Array.from(cpsSet).sort((a,b) => a - b);
+allChars = cps.map(cp => ({ cp, ch: String.fromCodePoint(cp) }));
+applyFilter();
+buildGrid();
 
         loadStatus.textContent = '読込済み';
       } catch (err) {
